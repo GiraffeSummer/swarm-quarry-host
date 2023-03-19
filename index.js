@@ -1,20 +1,20 @@
+require('dotenv').config()
 /******************
  *  Basic Config   *
  ******************/
-
 // Logging levels:
 // 0 - no logging
 // 1 - low logging - log important events (swarm creation, swarm completion, etc) and errors
 // 2 - high logging - log almost everything
 // 3 - max logging - log everything
 // default: 1
-var logging = 3;
+const logging = process.env.LOG_LEVEL;
 
 // Authentication
 // Since this is stored in plain text, do not use a password you use elsewhere - this is
 //  intended to be a BASIC authentication system and is NOT secure!
 // Set to an empty string to disable authentication
-var auth_token = "";
+const auth_token = process.env.PASSWORD || "";
 
 /******************
  * Advanced Config *
@@ -23,33 +23,36 @@ var auth_token = "";
 // JSON data file
 // The file that JSON will be read from and written to
 // default: data.json
-var dbfile = "data.json";
+const dbfile = "data.json";
 
 // Port to run on
 // default: PORT environment variable or 8080
-var port = process.env.PORT || 8080;
+const port = process.env.PORT || 8080;
 
 // IP Locking
 // If true, will only allow commands to be run by the IP that created the specified swarm
 // This can be used to mitigate 'griefing' by controlling someone's swarm
 // default: true
-var iplock = true;
+const iplock = process.env.IP_LOCK || true;
 
 /******************
  *       Code      *
  *  Don't change!  *
  ******************/
 
-var express = require("express");
-var fs = require("fs");
-var jsf = require("jsonfile");
+const express = require("express");
+const fs = require("fs");
+const jsf = require("jsonfile");
 
-var app = express();
+const app = express();
 
-var db;
+app.use(express.static('frontend/dist'))
+app.use(require('cors')())
+
+let db;
 
 function savedb() {
-    jsf.writeFile(dbfile, db, function(e) {
+    jsf.writeFile(dbfile, db, function (e) {
         if (e && logging >= 1) console.error("WARNING - Error writing database: " + e);
     });
 }
@@ -67,43 +70,48 @@ catch (e) {
     savedb();
 }
 
-var handlers = {};
+const handlers = {};
 
-handlers.common = function(req, res) {
-    var ip = req.headers['x-forwarded-for'] ||
+function getIp(req) {
+    return req.headers['x-forwarded-for'] ||
         req.connection.remoteAddress ||
         req.socket.remoteAddress ||
         req.connection.socket.remoteAddress;
+}
+handlers.common = function (req, res) {
+    const ip = getIp(req);
     if (logging >= 3) console.log(ip + " requested " + req.url);
     return ip;
 };
 
-handlers.root = function(req, res) {
-    handlers.common(req, res);
-    res.send("This is a placeholder!");
-
-};
-
-handlers.swarmlist = function(req, res) {
-    var ip = handlers.common(req, res);
+handlers.swarmlist = function (req, res) {
+    const ip = getIp(req);
     res.send({
         success: Object.keys(db)
     });
     if (logging >= 2) console.log(ip + " requested swarm list");
 };
 
-handlers.swarminfo = function(req, res) {
+handlers.swarminfo = function (req, res) {
     handlers.common(req, res);
-    res.send("swarm info requested");
+
+    const swarmId = req.params.swarmid;
+
+    if (swarmId in db) {
+        const safeData = db[swarmId]
+        //remove IP
+        delete safeData.ip
+        res.send({ success: { [swarmId]: safeData } })
+    } else {
+        res.send({ error: { message: "Invalid swarm" } })
+    }
+
 };
 
-handlers.swarmcommand = function(req, res) {
+handlers.swarmcommand = function (req, res) {
     handlers.common(req, res);
-    var ip = req.headers['x-forwarded-for'] ||
-        req.connection.remoteAddress ||
-        req.socket.remoteAddress ||
-        req.connection.socket.remoteAddress;
-    var checks = function() {
+    const ip = getIp(req);
+    const checks = function () {
         if (auth_token && auth_token != req.query.token) {
             res.send({
                 error: "invalid token"
@@ -140,24 +148,25 @@ handlers.swarmcommand = function(req, res) {
                     break;
                 }
                 db[req.params.swarmid] = {};
-                var swarmConfig = {};
-                swarmConfig.time_created = new Date().getTime();
-                swarmConfig.width = req.query.width;
-                swarmConfig.length = req.query.length;
-                swarmConfig.ip = ip;
+                const swarmConfig = {
+                    time_created: new Date().getTime(),
+                    width: req.query.width,
+                    length: req.query.length,
+                    ip: ip,
+                    shafts: [],
+                    travelData: [],
+                    claimed: [],
+                    done: []
+                };
                 // generate shaft list
-                swarmConfig.shafts = [];
-                swarmConfig.travelData = [];
-                for (var i = 0; i < req.query.width; i++) {
-                    for (var j = 0; j < req.query.length; j++) {
+                for (let i = 0; i < req.query.width; i++) {
+                    for (let j = 0; j < req.query.length; j++) {
                         if (((i % 5) * 2 + j) % 5 == 0) swarmConfig.shafts.push({
                             x: i,
                             z: j
                         });
                     }
                 }
-                swarmConfig.claimed = [];
-                swarmConfig.done = [];
                 db[req.params.swarmid] = swarmConfig;
                 savedb();
                 res.send({
@@ -184,7 +193,7 @@ handlers.swarmcommand = function(req, res) {
                     });
                     break;
                 }
-                var shaft = db[req.params.swarmid].shafts.shift();
+                const shaft = db[req.params.swarmid].shafts.shift();
                 if (shaft) {
                     res.send({
                         success: shaft,
@@ -222,18 +231,18 @@ handlers.swarmcommand = function(req, res) {
                     });
                     break;
                 }
-                var x = Number(req.query.x);
-                var z = Number(req.query.z);
-                var index = -1;
-                for (var i = 0; i <= db[req.params.swarmid].claimed.length; i++) {
-                    var tmpshaft = db[req.params.swarmid].claimed[i];
+                const x = Number(req.query.x);
+                const z = Number(req.query.z);
+                let index = -1;
+                for (let i = 0; i <= db[req.params.swarmid].claimed.length; i++) {
+                    const tmpshaft = db[req.params.swarmid].claimed[i];
                     if (tmpshaft && tmpshaft.x == x && tmpshaft.z == z) {
                         index = i;
                         break;
                     }
                 }
                 if (index != -1) {
-                    var shaft = db[req.params.swarmid].claimed.splice(index, 1)[0];
+                    const shaft = db[req.params.swarmid].claimed.splice(index, 1)[0];
                     shaft.completed_time = new Date().getTime();
                     db[req.params.swarmid].done.push(shaft);
                     res.send({
@@ -270,7 +279,7 @@ handlers.swarmcommand = function(req, res) {
                     break;
                 }
 
-                var posData = {
+                const posData = {
                     dest: {
                         x: req.query.destX,
                         // y: req.query.destY,
@@ -284,48 +293,48 @@ handlers.swarmcommand = function(req, res) {
                 }
 
                 // return true if line segments AB and CD intersect
-                var intersect = function(A, B, C, D) {
-                    var ccw = function (A,B,C) {
+                const intersect = function (A, B, C, D) {
+                    const ccw = function (A, B, C) {
                         return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x)
                     }
                     return ccw(A, C, D) != ccw(B, C, D) && ccw(A, B, C) != ccw(A, B, D)
                 }
 
-                var travelData = db[req.params.swarmid].travelData;
-                var intersectExists = false;
-                for (var i = 0; i < travelData.length; i++) {
-                    var t = travelData[i];
+                const travelData = db[req.params.swarmid].travelData;
+                let intersectExists = false;
+                for (let i = 0; i < travelData.length; i++) {
+                    const t = travelData[i];
                     if (!t || i == req.query.id) { continue; } // skip if comparing to self
-                    var a1 = {
+                    const a1 = {
                         x: posData.start.x,
                         y: posData.start.z
                     }
-                    var b1 = {
+                    const b1 = {
                         x: posData.dest.x,
                         y: posData.start.z
                     }
-                    var c1 = {
+                    const c1 = {
                         x: t.start.x,
                         y: t.start.z
                     }
-                    var d1 = {
+                    const d1 = {
                         x: t.dest.x,
                         y: t.start.z
                     }
 
-                    var a2 = {
+                    const a2 = {
                         x: posData.dest.x,
                         y: posData.start.z
                     }
-                    var b2 = {
+                    const b2 = {
                         x: posData.dest.x,
                         y: posData.dest.z
                     }
-                    var c2 = {
+                    const c2 = {
                         x: t.dest.x,
                         y: t.start.z
                     }
-                    var d2 = {
+                    const d2 = {
                         x: t.dest.x,
                         y: t.dest.z
                     }
@@ -391,7 +400,10 @@ handlers.swarmcommand = function(req, res) {
 };
 
 // Web CP (todo)
-app.get('/', handlers.root);
+app.get('/', (req, res) => {
+    handlers.common(req, res);
+    res.sendFile(path.resolve(__dirname, 'frontend', 'dist', 'index.html'));
+});
 // Swarm List
 app.get('/swarm/', handlers.swarmlist);
 // Info about specified swarm
@@ -399,9 +411,9 @@ app.get('/swarm/:swarmid/', handlers.swarminfo);
 // Run a command on specified swarm
 app.get('/swarm/:swarmid/:swarmcommand/', handlers.swarmcommand);
 
-var server = app.listen(port, function() {
-    var host = server.address().address;
-    var port = server.address().port;
+const server = app.listen(port, function () {
+    const host = server.address().address;
+    const port = server.address().port;
 
     if (logging >= 1) console.log('Running swarm quarry host at port %s', port);
 });
