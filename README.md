@@ -14,3 +14,4 @@ Wishlist:
  - unique keys (possible overlapping names)
  - turtle info on dashboard (which turtles are assigned, and which are active)
  - better blacklist options
+ - guide on how to add new quarry
