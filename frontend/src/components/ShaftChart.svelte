@@ -23,15 +23,12 @@
     );
 
   export let swarmInfo;
-
-  let chartObj;
-
 </script>
 
 
 <Scatter
   data={{
-    labels: ['Scatter'],
+    labels: [],
     datasets: [
       {
         backgroundColor: 'white',

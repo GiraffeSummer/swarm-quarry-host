@@ -2,6 +2,7 @@ require('dotenv').config()
 /******************
  *  Basic Config   *
  ******************/
+
 // Logging levels:
 // 0 - no logging
 // 1 - low logging - log important events (swarm creation, swarm completion, etc) and errors
@@ -43,7 +44,7 @@ const iplock = process.env.IP_LOCK || true;
 const express = require("express");
 const fs = require("fs");
 const jsf = require("jsonfile");
-
+const path = require('path');
 const app = express();
 
 app.use(express.static('frontend/dist'))
@@ -72,19 +73,17 @@ catch (e) {
 
 const handlers = {};
 
-function getIp(req) {
-    return req.headers['x-forwarded-for'] ||
-        req.connection.remoteAddress ||
-        req.socket.remoteAddress ||
-        req.connection.socket.remoteAddress;
-}
 handlers.common = function (req, res) {
     const ip = getIp(req);
-    if (logging >= 3) console.log(ip + " requested " + req.url);
-    return ip;
+
+    if (logging >= 3) {
+        console.log(ip + " requested " + req.url);
+    }
 };
 
 handlers.swarmlist = function (req, res) {
+    handlers.common(req, res);
+    //res.send("swarm list requested")
     const ip = getIp(req);
     res.send({
         success: Object.keys(db)
@@ -108,23 +107,19 @@ handlers.swarminfo = function (req, res) {
 
 };
 
+function getIp(req) {
+    return req.headers['x-forwarded-for'] ||
+        req.connection.remoteAddress ||
+        req.socket.remoteAddress ||
+        req.connection.socket.remoteAddress;
+}
+
 handlers.swarmcommand = function (req, res) {
     handlers.common(req, res);
+    //res.send("swarm command requested");
+
     const ip = getIp(req);
-    const checks = function () {
-        if (auth_token && auth_token != req.query.token) {
-            res.send({
-                error: "invalid token"
-            });
-            return false;
-        } else if (iplock && ip != db[req.params.swarmid].ip) {
-            res.send({
-                error: "ip mismatch"
-            });
-            return false;
-        }
-        return true;
-    }
+
     switch (req.params.swarmcommand) {
         // create a new swarm entry in the database
         case "create":
@@ -141,7 +136,7 @@ handlers.swarmcommand = function (req, res) {
                     });
                     break;
                 }
-                if (!req.query.width || !req.query.length) {
+                if (!req.query.w || !req.query.h) {
                     res.send({
                         error: "missing parameters"
                     });
@@ -150,21 +145,21 @@ handlers.swarmcommand = function (req, res) {
                 db[req.params.swarmid] = {};
                 const swarmConfig = {
                     time_created: new Date().getTime(),
-                    width: req.query.width,
-                    length: req.query.length,
+                    w: req.query.w,
+                    h: req.query.h,
                     ip: ip,
                     shafts: [],
-                    travelData: [],
                     claimed: [],
                     done: []
                 };
-                // generate shaft list
-                for (let i = 0; i < req.query.width; i++) {
-                    for (let j = 0; j < req.query.length; j++) {
-                        if (((i % 5) * 2 + j) % 5 == 0) swarmConfig.shafts.push({
-                            x: i,
-                            z: j
-                        });
+                for (let i = 0; i < req.query.w; i++) {
+                    for (let j = 0; j < req.query.h; j++) {
+                        if (((i % 5) * 2 + j) % 5 == 0) {
+                            swarmConfig.shafts.push({
+                                x: i,
+                                z: j
+                            });
+                        }
                     }
                 }
                 db[req.params.swarmid] = swarmConfig;
@@ -173,43 +168,58 @@ handlers.swarmcommand = function (req, res) {
                     success: "swarm created",
                     shafts: db[req.params.swarmid].shafts.length
                 });
-                if (logging >= 1) console.log(ip + " created swarm '" + req.params.swarmid + "'");
+                if (logging >= 1) {
+                    console.log(ip + " created swarm '" + req.params.swarmid + "'");
+                }
                 break;
             }
 
         // claim a shaft for a turtle
         case "claimshaft":
             {
-                if (!checks()) {
+                if (auth_token && auth_token != req.query.token) {
+                    res.send({
+                        error: "invalid token"
+                    });
                     break;
-                } else if (!db[req.params.swarmid]) {
+                }
+                if (iplock && ip != db[req.params.swarmid].ip) {
+                    res.send({
+                        error: "ip mismatch"
+                    });
+                    break;
+                }
+                if (!db[req.params.swarmid]) {
                     res.send({
                         error: "swarm does not exist"
                     });
                     break;
-                } else if (req.query.id == undefined) {
+                }
+                if (!req.query.id) {
                     res.send({
                         error: "missing parameters"
                     });
                     break;
                 }
-                const shaft = db[req.params.swarmid].shafts.shift();
+                let shaft = db[req.params.swarmid].shafts.shift();
                 if (shaft) {
                     res.send({
                         success: shaft,
-                        remaining: db[req.params.swarmid].shafts.length
+                        done: (db[req.params.swarmid].shafts.length == 0)
                     });
                     shaft.claimed_time = new Date().getTime();
                     shaft.claimed_by = req.query.id;
                     db[req.params.swarmid].claimed.push(shaft);
-                    if (logging >= 2) console.log("Shaft (" + shaft.x + ", " + shaft.z + ") claimed in swarm '" + req.params.swarmid + "' by turtle " + req.query.id + " (" + db[req.params.swarmid].shafts.length + " remaining)");
                     savedb();
+                    if (logging >= 2) {
+                        console.log("Shaft (" + shaft.x + ", " + shaft.z + ") claimed in swarm '" + req.params.swarmid + "' by turtle " + req.query.id);
+                    }
                     break;
                 }
                 else {
                     res.send({
                         error: "no remaining shafts",
-                        remaining: 0
+                        done: true
                     });
                     break;
                 }
@@ -218,14 +228,25 @@ handlers.swarmcommand = function (req, res) {
         // mark a shaft as finished
         case "finishedshaft":
             {
-                if (!checks()) {
+                if (auth_token && auth_token != req.query.token) {
+                    res.send({
+                        error: "invalid token"
+                    });
                     break;
-                } else if (!db[req.params.swarmid]) {
+                }
+                if (iplock && ip != db[req.params.swarmid].ip) {
+                    res.send({
+                        error: "ip mismatch"
+                    });
+                    break;
+                }
+                if (!db[req.params.swarmid]) {
                     res.send({
                         error: "swarm does not exist"
                     });
                     break;
-                } else if (!(req.query.x && req.query.z)) {
+                }
+                if (!(req.query.x && req.query.z)) {
                     res.send({
                         error: "missing parameters"
                     });
@@ -262,133 +283,6 @@ handlers.swarmcommand = function (req, res) {
                 }
             }
 
-        // add the specified location to the travel queue
-        case "travel":
-            {
-                if (!checks()) {
-                    break;
-                } else if (!db[req.params.swarmid]) {
-                    res.send({
-                        error: "swarm does not exist"
-                    });
-                    break;
-                } else if (req.query.id == undefined || req.query.destX == undefined || req.query.destY == undefined || req.query.destZ == undefined || req.query.startX == undefined || req.query.startY == undefined && req.query.startZ != undefined) {
-                    res.send({
-                        error: "missing parameters"
-                    });
-                    break;
-                }
-
-                const posData = {
-                    dest: {
-                        x: req.query.destX,
-                        // y: req.query.destY,
-                        z: req.query.destZ
-                    },
-                    start: {
-                        x: req.query.fromX,
-                        // y: req.query.fromY,
-                        z: req.query.fromZ
-                    }
-                }
-
-                // return true if line segments AB and CD intersect
-                const intersect = function (A, B, C, D) {
-                    const ccw = function (A, B, C) {
-                        return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x)
-                    }
-                    return ccw(A, C, D) != ccw(B, C, D) && ccw(A, B, C) != ccw(A, B, D)
-                }
-
-                const travelData = db[req.params.swarmid].travelData;
-                let intersectExists = false;
-                for (let i = 0; i < travelData.length; i++) {
-                    const t = travelData[i];
-                    if (!t || i == req.query.id) { continue; } // skip if comparing to self
-                    const a1 = {
-                        x: posData.start.x,
-                        y: posData.start.z
-                    }
-                    const b1 = {
-                        x: posData.dest.x,
-                        y: posData.start.z
-                    }
-                    const c1 = {
-                        x: t.start.x,
-                        y: t.start.z
-                    }
-                    const d1 = {
-                        x: t.dest.x,
-                        y: t.start.z
-                    }
-
-                    const a2 = {
-                        x: posData.dest.x,
-                        y: posData.start.z
-                    }
-                    const b2 = {
-                        x: posData.dest.x,
-                        y: posData.dest.z
-                    }
-                    const c2 = {
-                        x: t.dest.x,
-                        y: t.start.z
-                    }
-                    const d2 = {
-                        x: t.dest.x,
-                        y: t.dest.z
-                    }
-
-                    if (intersect(a1, b1, c1, d1) || intersect(a1, b1, c2, d2) || intersect(a2, b2, c1, d1) || intersect(a2, b2, c2, d2)) {
-                        intersectExists = true;
-                        break;
-                    }
-                }
-                if (intersectExists) {
-                    res.send({
-                        error: "travel path intersects with queued path"
-                    });
-                    break;
-                } else {
-                    db[req.params.swarmid].travelData[req.query.id] = posData;
-                    savedb();
-                    res.send({
-                        success: true
-                    });
-                }
-                break;
-            }
-
-        // remove the specified location to the travel queue
-        case "traveldone":
-            {
-                if (!checks()) {
-                    break;
-                } else if (!db[req.params.swarmid]) {
-                    res.send({
-                        error: "swarm does not exist"
-                    });
-                    break;
-                } else if (req.query.id == undefined) {
-                    res.send({
-                        error: "missing parameters"
-                    });
-                    break;
-                } else if (!db[req.params.swarmid].travelData[req.query.id]) {
-                    res.send({
-                        success: true,
-                        error: "travel id not exist"
-                    });
-                    break;
-                }
-                db[req.params.swarmid].travelData[req.query.id] = null;
-                savedb();
-                res.send({
-                    success: true
-                });
-                break;
-            }
-
         default:
             {
                 res.send({
@@ -400,10 +294,12 @@ handlers.swarmcommand = function (req, res) {
 };
 
 // Web CP (todo)
+// app.get('/', handlers.root);
 app.get('/', (req, res) => {
     handlers.common(req, res);
     res.sendFile(path.resolve(__dirname, 'frontend', 'dist', 'index.html'));
 });
+
 // Swarm List
 app.get('/swarm/', handlers.swarmlist);
 // Info about specified swarm
@@ -411,9 +307,12 @@ app.get('/swarm/:swarmid/', handlers.swarminfo);
 // Run a command on specified swarm
 app.get('/swarm/:swarmid/:swarmcommand/', handlers.swarmcommand);
 
+
 const server = app.listen(port, function () {
     const host = server.address().address;
     const port = server.address().port;
 
-    if (logging >= 1) console.log('Running swarm quarry host at port %s', port);
+    if (logging >= 1) {
+        console.log('Running swarm quarry host at port %s', port);
+    }
 });
