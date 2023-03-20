@@ -30,6 +30,10 @@
       Created at: {formatTime(swarmInfo.time_created)}
     </li>
 
+    <li>
+      Unclaimed shafts: {swarmInfo.claimed.shafts.length}
+    </li>
+
     {#if swarmInfo.done.length > 0}
       <li>
         recent finished turtle: {sortByProp(swarmInfo.done, 'completed_time')[0]
@@ -45,17 +49,10 @@
     {/if}
     <li>
       <details>
-        <summary>Shafts: {swarmInfo.shafts.length}</summary>
+        <summary>Shafts: {totalShafts}</summary>
         <div>
           <ShaftChart {swarmInfo} />
         </div>
-        <!-- <ul>
-          {#each swarmInfo.shafts as shaft}
-            <li>
-              X: {shaft.x} - Z: {shaft.z}
-            </li>
-          {/each}
-        </ul> -->
       </details>
     </li>
     <li>
