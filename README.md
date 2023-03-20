@@ -9,10 +9,12 @@ Read about setup and usage [here](https://www.computercraft.info/forums2/index.p
 
 
 Wishlist:
- - travel queues (no more mining up eachother)
+ - travel queues (no more mining up each other)
  - somewhat proper db (sql / mongo)
  - unique keys (possible overlapping names)
  - turtle info on dashboard (which turtles are assigned, and which are active)
  - better blacklist options
  - guide on how to add new quarry
  - actual coordinates instead of relative coordinates
+ - head to surface command from dashboard (maybe password protected)
+ - active status on turtles (timeout, inactive, broken, etc)
