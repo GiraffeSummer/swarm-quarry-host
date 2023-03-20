@@ -1,30 +1,29 @@
 <script>
-    import { Scatter } from 'svelte-chartjs';
+  import { Scatter } from 'svelte-chartjs';
 
-    import {
-      Chart as ChartJS,
-      Title,
-      Tooltip,
-      Legend,
-      LineElement,
-      CategoryScale,
-      LinearScale,
-      PointElement,
-    } from 'chart.js';
+  import {
+    Chart as ChartJS,
+    Title,
+    Tooltip,
+    Legend,
+    LineElement,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+  } from 'chart.js';
 
-    ChartJS.register(
-      Title,
-      Tooltip,
-      Legend,
-      LineElement,
-      CategoryScale,
-      LinearScale,
-      PointElement
-    );
+  ChartJS.register(
+    Title,
+    Tooltip,
+    Legend,
+    LineElement,
+    CategoryScale,
+    LinearScale,
+    PointElement
+  );
 
   export let swarmInfo;
 </script>
-
 
 <Scatter
   data={{
@@ -44,21 +43,21 @@
         backgroundColor: 'orange',
         label: 'claimed',
         data: swarmInfo.claimed.map((shaft) => {
-          return { x: shaft.x, y: -shaft.z };
+          return { x: -shaft.x, y: shaft.z };
         }),
       },
       {
         backgroundColor: 'green',
         label: 'complete',
         data: swarmInfo.done.map((shaft) => {
-          return { x: shaft.x, y: -shaft.z };
+          return { x: -shaft.x, y: shaft.z };
         }),
       },
       {
         backgroundColor: 'red',
         label: 'unclaimed',
         data: swarmInfo.shafts.map((shaft) => {
-          return { x: shaft.x, y: -shaft.z };
+          return { x: -shaft.x, y: shaft.z };
         }),
       },
     ],
