@@ -15,3 +15,4 @@ Wishlist:
  - turtle info on dashboard (which turtles are assigned, and which are active)
  - better blacklist options
  - guide on how to add new quarry
+ - actual coordinates instead of relative coordinates

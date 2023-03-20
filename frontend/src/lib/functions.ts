@@ -1,4 +1,6 @@
-const baseURl = 'http://localhost:8080/'
+const PRODUCTION = import.meta.env.VITE_ENV === 'production'
+
+const baseURl = PRODUCTION ? '/' : 'http://localhost:8080/'
 
 const timeFormatter = new Intl.DateTimeFormat(
     window.navigator.language || 'en-US',
