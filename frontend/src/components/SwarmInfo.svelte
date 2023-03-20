@@ -31,7 +31,7 @@
     </li>
 
     <li>
-      Unclaimed shafts: {swarmInfo.claimed.shafts.length}
+      Unclaimed shafts: {swarmInfo.shafts.length}
     </li>
 
     {#if swarmInfo.done.length > 0}
