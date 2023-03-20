@@ -44,21 +44,21 @@
         backgroundColor: 'orange',
         label: 'claimed',
         data: swarmInfo.claimed.map((shaft) => {
-          return { x: shaft.x, y: shaft.z };
+          return { x: shaft.x, y: -shaft.z };
         }),
       },
       {
         backgroundColor: 'green',
         label: 'complete',
         data: swarmInfo.done.map((shaft) => {
-          return { x: shaft.x, y: shaft.z };
+          return { x: shaft.x, y: -shaft.z };
         }),
       },
       {
         backgroundColor: 'red',
         label: 'unclaimed',
         data: swarmInfo.shafts.map((shaft) => {
-          return { x: shaft.x, y: shaft.z };
+          return { x: shaft.x, y: -shaft.z };
         }),
       },
     ],
