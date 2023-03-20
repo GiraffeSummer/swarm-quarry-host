@@ -30,9 +30,6 @@
       Created at: {formatTime(swarmInfo.time_created)}
     </li>
 
-    <li>
-      Unclaimed shafts: {swarmInfo.shafts.length}
-    </li>
 
     {#if swarmInfo.done.length > 0}
       <li>
@@ -47,6 +44,13 @@
           .claimed_by}
       </li>
     {/if}
+
+    
+    <li>
+      Unclaimed shafts: {swarmInfo.shafts.length}
+    </li>
+
+    
     <li>
       <details>
         <summary>Shafts: {totalShafts}</summary>
